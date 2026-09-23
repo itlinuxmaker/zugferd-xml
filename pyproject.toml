@@ -3,3 +3,8 @@ name = "zugferd-xml"
 version = "1.4.0"
 description = "XML generator for ZUGFeRD invoices"
 requires-python = ">=3.13"
+
+dependencies = [
+    "pikepdf",
+    "pyyaml",
+]
