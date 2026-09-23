@@ -20,6 +20,7 @@ Creates ZUGFeRD 2.5 invoices from invoice data and a PDF/A-3b source, supports m
 The installation script builds Mustang Project and installs the `mustang` command system-wide as root:
 ```
 su -
+chmod a+x scripts/install-mustang.sh
 ./scripts/install-mustang.sh
 ```
 
@@ -28,7 +29,8 @@ The file `src/invoicedata.yaml` primarily contains default values ​​for the 
 
 ## Usage
 ```
-python3 src/zugferd-xml.py
+cd src
+python3 zugferd-xml.py
 ```
 
 ## Output
