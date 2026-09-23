@@ -1,0 +1,97 @@
+invoice:
+  - Settings:
+      pdf_path: "/home/user/Dokumente/Rechnungen/" 
+      xml_path: "/home/user/Dokumente/Rechnungen/"
+      xml_file: "faktura-ZUGFeRD.xml"
+      formats: "fx"
+      version: "2"
+      attachments:
+
+  - ExchangedDocument:
+      invoice_number_pre: "RE"
+      invoice_number: "202610_01"
+      invoice_date: "01.10.2026"
+      type_code1: "380"
+
+  - SupplyChainTradeTransaction:
+      product_name:
+      unit_price:
+      quantity:
+      unit_code: "HUR"
+      RateApplicablePercent: "19.00"
+
+  - SellerTradeParty:
+      seller_name: "Musterunternehmen GmbH"
+      seller_postcode: "70173"
+      seller_street: "Musterstraße 1"
+      seller_city: "Stuttgart"
+      seller_country: "DE"
+      schemeID: "VA"
+      seller_vat_id: "DE000000000"
+
+  - BuyerTradeParty:
+      buyer_name: "Beispielkunde GmbH"
+      buyer_id: "10001"
+      buyer_postcode: "70174"
+      buyer_street: "Beispielweg 10"
+      buyer_city: "Stuttgart"
+      buyer_country: "DE"
+
+  - ApplicableHeaderTradeSettlement:
+      creditor_reference_id: "DE89370400440532013000"
+      InvoiceCurrencyCode: "EUR"
+      type_code2: "59"
+      information1: "SEPA-Überweisung"
+      iban_id: "DE89370400440532013000"
+      bic_id: "COBADEFFXXX"
+      information2: "SEPA-Lastschrift"
+      mandateID: "Muster2026100244118"
+
+  - ApplicableTradeTax:
+      type_code3: "VAT"
+      category_code: "S"
+
+  - BillingSpecifiedPeriod:
+      StartDateTime: "20260701"
+      EndDateTime: "20260930"
+
+  - ApplicableHeaderTradeDelivery:
+      deliveryDate: ""
+
+  - SpecifiedTradePaymentTerms:
+      PaymentTerms: "sofort"
+
+  - SpecifiedTradeSettlementHeaderMonetarySummation:
+      currencyID: "EUR"
+
+logging:
+    logpath: "zugferd-xml"
+    logfile: "zugferd-xml.log"
+
+descriptions:
+    pdf_path: "Pfad zur PDF-Rechnung"
+    xml_path: "Pfad für endgültige XML-Datei"
+    xml_file: "Dateiname der XML-Datei"
+    invoice_number_pre: "Prefix für die Rechnung (optional)"
+    invoice_number: "Rechnungnummer (JJJJMM_Nr)"
+    invoice_date: "Rechnungsdatum"
+    RateApplicablePercent: "Umsatzsteuer in Prozent für diese Leistung"
+    buyer_name: "Kundenname"
+    buyer_id: "Kunden-Nr."
+    buyer_postcode: "PLZ des Kunden"
+    buyer_street: "Adresse des Kunden"
+    buyer_city: "Stadt des Kunden"
+    buyer_country: "Land des Kundenstandortes"
+    creditor_reference_id: "IBAN des Kunden"
+    InvoiceCurrencyCode: "Währung"
+    information1: "SEPA-Vorgang"
+    information2: "SEPA-Vorgang"
+    mandateID: "Kennung der Mandatsreferenz"
+    PaymentTerms: "Zahlungsziel, mögliche Werte sind 'sofort', '7', '14', '21', '30', '45'"
+    StartDateTime: "Beginn der Leistungen"
+    EndDateTime: "Ende der Leistungen"
+    deliveryDate: "Leistungsdatum"
+    formats: "fx=Factur-X, zf=ZUGFeRD, ox=Order-X, da=Cross Industry Despatch Advice"
+    version: "ZUGFeRD-1.x-Format (1), ZUGFeRD-2.x-/Factur-X-Format(2)"
+    attachments: "Zusätzliche Dateien zum Anhängen"
+    
