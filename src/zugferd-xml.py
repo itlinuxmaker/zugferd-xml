@@ -45,6 +45,7 @@ def check_config():
     if not configfile.exists():
         print(f"ERROR: Die Konfigurationsdatei fehlt: {configfile}")
         print(f"Führen Sie zuerst das install-config.sh gemäss der READme aus!")
+        sys.exit(1)
 
 
 # Function to load the YAML configuration
