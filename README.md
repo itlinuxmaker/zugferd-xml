@@ -34,7 +34,7 @@ su -c "./install-mustang.sh"
 ```
 
 ## Configuration
-The file `src/invoicedata.yaml` primarily contains default values ​​for the ZUGFeRD format and fixed user data intended for general use. Otherwise, many inputs are provided interactively via the CLI.
+The file `src/invoicedata.yaml` primarily contains default values ​​for the ZUGFeRD format and fixed user data intended for general use. Otherwise, many inputs are provided interactively via the CLI. To place the file in the correct location within the user's home directory, follow the instructions in the "Installation" section.
 
 ## Usage
 ```
