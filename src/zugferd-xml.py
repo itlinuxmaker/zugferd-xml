@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 
 """
 zugferd-xml
-Version: 1.4.0
+Version: 1.4.1
 Author: Andreas Günther
 License: GNU General Public License v3.0 or later
 
@@ -32,7 +32,20 @@ def check_mustang():
         raise RuntimeError(
             "Mustang ist nicht installiert. "
             "Bitte gemäss README systemweit installieren."
-        )      
+        )  
+
+# Check whether the config file is available in the .config folder.
+def check_config():
+    """
+    Checks whether the YAML file containing the configuration values ​​already exists.
+    """
+    global configfile
+    configfile = Path.home() / ".config/zugferd-xml/invoicedata.yaml"
+
+    if not configfile.exists():
+        print(f"ERROR: Die Konfigurationsdatei fehlt: {configfile}")
+        print(f"Führen Sie zuerst das install-config.sh gemäss der READme aus!")
+
 
 # Function to load the YAML configuration
 def load_invoice_data(filename):
@@ -71,7 +84,7 @@ def read_inputs():
     Here, the data is read in for confirmation or modification. Additional data is requested and
     stored globally so that it is available in the global namespace.
     """
-    invoice_data = load_invoice_data("invoicedata.yaml")
+    invoice_data = load_invoice_data(configfile)
     global descriptions
     descriptions = invoice_data["descriptions"]
     
@@ -678,13 +691,15 @@ def validate_zugferd_pdf():
 
 
 def main():
+
+    check_config()
     check_mustang()
-    setup_logging("invoicedata.yaml")
+    setup_logging(configfile)
 
     logging.info("===========================================================")
     logging.info(f"Start der ZUGFeRD-PDF-Generierung um {datetime.now():%H:%M:%S} Uhr")
 
-    invoice_data = load_invoice_data("invoicedata.yaml")
+    invoice_data = load_invoice_data(configfile)
 
     for block in invoice_data["invoice"]:
         for level2, fields in block.items():

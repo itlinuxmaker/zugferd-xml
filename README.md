@@ -16,12 +16,21 @@ Creates ZUGFeRD 2.5 invoices from invoice data and a PDF/A-3b source, supports m
 * PyYAML and pikepdf must be installed via pip
 * Mustangproject 2.5
 
+### Make the YAML file available in the user directory.
+This installation script must be run as a normal user.
+```
+cd zugferd-xml/scripts/
+chmod a+x install-config.sh
+./install-config.sh
+```
+This makes the YAML file available for editing under ~/.config/zugferd-xml/.
+
 ### Mustang Project
 The installation script builds Mustang Project and installs the `mustang` command system-wide as root:
 ```
-su -
-chmod a+x scripts/install-mustang.sh
-./scripts/install-mustang.sh
+cd zugferd-xml/scripts/
+chmod a+x install-mustang.sh
+su -c "./install-mustang.sh"
 ```
 
 ## Configuration
