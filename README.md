@@ -1,5 +1,5 @@
 # ZUGFeRD XML and Invoice Generator
-Creates ZUGFeRD 2.5 invoices from invoice data and a PDF/A-3b source, supports multiple VAT rates, generates the ZUGFeRD XML, combines PDF and XML with Mustang Project, and validates the resulting ZUGFeRD PDF.
+Creates ZUGFeRD 2.5 invoices from invoice data and a PDF/A-3b source, supports multiple VAT rates, generates the ZUGFeRD XML, combines PDF and XML with Mustang Project, and validates the resulting ZUGFeRD PDF. Additionally, starting with release 1.5.0, it is possible to sign the ZUGFeRD PDF using a custom Certificate Authority to protect it against subsequent alteration.
 
 ## Features
 * Input of invoice data via YAML file and CLI
@@ -10,10 +10,11 @@ Creates ZUGFeRD 2.5 invoices from invoice data and a PDF/A-3b source, supports m
 * PDF/A-3b verification
 * Validation with Mustangproject
 * Daily logging of key inputs, ensuring that calculated values ​​can also be found in the log.
+* Signing the ZUGFeRD PDF using a proprietary Certification Authority.
 
 ## Installation
 * Python 3.13+
-* PyYAML and pikepdf must be installed via pip
+* PyYAML, pikepdf, cryptography and pyHanko must be installed via pip
 * Mustangproject 2.5
 
 ### Make the YAML file available in the user directory.
@@ -43,10 +44,12 @@ python3 zugferd-xml.py
 ```
 
 ## Output
-Two files are created in the specified directory alongside the existing PDF/A-3b file:  
+Three files are created in the specified directory alongside the existing PDF/A-3b file:  
 RE_CustomerNo_InvoiceNo-ZUGFeRD.pdf  
+RE_CustomerNo_InvoiceNo-ZUGFeRD_signed.pdf (If signing is selected)
 RE_CustomerNo_InvoiceNo-ZUGFeRD.xml
 The PDF file contains both the XML file and additional files inserted as attachments (e.g., proof of service).
+When creating a certification authority with a key, ca.crt and ca.key are saved in ~/.config/zugferd-xml/.
 
 ## ZUGFeRD
 ZUGFeRD is a hybrid electronic invoice format that combines a human-readable PDF document with structured invoice data in XML format.

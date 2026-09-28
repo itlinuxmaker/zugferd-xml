@@ -10,16 +10,18 @@ import logging
 from xml.sax.saxutils import escape
 from pathlib import Path
 from datetime import datetime, timedelta
+import signature
 
 """
 zugferd-xml
-Version: 1.4.1
+Version: 1.5.0
 Author: Andreas Günther
 License: GNU General Public License v3.0 or later
 
 Creates ZUGFeRD 2.5 invoices from invoice data and a PDF/A-3b source,
 supports multiple VAT rates, generates the ZUGFeRD XML, combines PDF
-and XML with Mustang Project, and validates the resulting ZUGFeRD PDF.
+and XML with Mustang Project, and validates the resulting ZUGFeRD PDF
+Starting with version 1.5.0, it is also possible to sign the PDF file.
 """
 
 # Function to check for the existence of the Mustang Project on the system
@@ -150,6 +152,8 @@ def read_inputs():
     pdf_file = f"{invoice_number_pre}_{buyer_id}_{invoice_number}.pdf"
     global zugferd_pdf
     zugferd_pdf = f"{invoice_number_pre}_{buyer_id}_{invoice_number}-ZUGFeRD.pdf"
+    global zugferd_pdf_sign
+    zugferd_pdf_sign = f"{invoice_number_pre}_{buyer_id}_{invoice_number}-ZUGFeRD_signed.pdf"
     global xml_file
     xml_file = f"{invoice_number_pre}_{buyer_id}_{invoice_number}-ZUGFeRD.xml"
     path_pdf = f"{pdf_path}{pdf_file}"
@@ -675,18 +679,18 @@ def validate_zugferd_pdf():
         subprocess.run([
             "mustang",
             "--action", "validate",
-            "--source", f"{pdf_path}{zugferd_pdf}",
+            "--source", f"{pdf_path}{zugferd_pdf_sign}",
         ], check=True)
 
         logging.info(
             f"ZUGFeRD-Validierung erfolgreich: "
-            f"{pdf_path}{zugferd_pdf}"
+            f"{pdf_path}{zugferd_pdf_sign}"
         )
 
     except subprocess.CalledProcessError:
         logging.exception(
             f"ZUGFeRD-Validierung fehlgeschlagen: "
-            f"{pdf_path}{zugferd_pdf}"
+            f"{pdf_path}{zugferd_pdf_sign}"
         )
         raise
 
@@ -769,6 +773,30 @@ def main():
         file.write('</rsm:CrossIndustryInvoice>\n' )
 
     create_pdfdocument()
+
+    """
+    Creation of an X.509 certificate and signing of the PDF file
+    """
+    while True:
+        # Checking user input for yes/no
+        try:
+            sign_ask = input(F"Soll die eben erstellte Datei {zugferd_pdf} zusätzlich mit einer Signatur abgesichert werden? [ja/nein]: ").strip().lower()
+            if sign_ask not in ("ja", "j", "nein", "n"):
+                raise ValueError
+            break    
+
+        except ValueError:
+            print("Bitte mit 'ja' oder 'nein' antworten! ")
+
+    if sign_ask in ("ja", "j"):
+        logging.info(f"Start der Signierung von {zugferd_pdf}.")
+        signature.main(
+            f"{pdf_path}{zugferd_pdf}",
+            f"{pdf_path}{zugferd_pdf_sign}"
+        )
+    elif sign_ask in ("nein", "n"):
+        logging.info(f"Keine Signierung von {zugferd_pdf}.")
+
     validate_zugferd_pdf()
 if __name__ == "__main__":
     main()
