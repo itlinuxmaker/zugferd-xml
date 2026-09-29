@@ -1,6 +1,5 @@
 """
 signature
-Version: 1.5.0
 Author: Andreas Günther
 License: GNU General Public License v3.0 or later
 
@@ -23,14 +22,35 @@ from getpass import getpass
 
 def check_ca():
     """
-    Checks if a CA key exists in the configuration directory and therefore no 
-    ca.crt file exists yet. If not, both files are generated. 
+    Checks if a CA key and certificate exist in the configuration directory
+    and whether the CA certificate is still valid.
     """
     
     ca_key_path = Path.home() / ".config/zugferd-xml/ca.key"
+    ca_cert_path = Path.home() / ".config/zugferd-xml/crt.key"
 
-    if not ca_key_path.exists():
-        print(f"ERROR: Der CA-Key fehlt: {ca_key_path}")
+    if not ca_key_path.exists() or not ca_cert_path.exists():
+        logging.error(f"Der CA-Key bzw. das CA-Zertifikat ist nicht vorhanden.")
+        return True
+
+    try:
+        with open(ca_cert_path, "rb") as cert_file:
+            certificate = x509.load_pem_x509_certificate(cert_file.read())
+
+        now = datetime.now(timezone.utc)
+
+        if now < certificate.not_valid_before_utc:
+            logging.error(f"Das CA-Zertifikat ist noch nicht gültig.")
+            logging.error(f"Gültig ab: {certificate.not_valid_before_utc}")
+            return True
+
+        if now > certificate.not_valid_after_utc:
+            logging.error(f"Das CA-Zertifikat ist abgelaufen.")
+            logging.error(f"Gültig bis: {certificate.not_valid_after_utc}")
+            return True
+
+    except Exception as error:
+        logging.error(f"Das CA-Zertifikat konnte nicht geprüft werden: {error}")
         return True
 
 def main(zugferd_pdf, zugferd_pdf_sign):

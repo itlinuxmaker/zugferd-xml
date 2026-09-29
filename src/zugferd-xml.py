@@ -14,7 +14,7 @@ import signature
 
 """
 zugferd-xml
-Version: 1.5.0
+Version: 1.5.1
 Author: Andreas Günther
 License: GNU General Public License v3.0 or later
 
