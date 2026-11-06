@@ -11,6 +11,7 @@ from xml.sax.saxutils import escape
 from pathlib import Path
 from datetime import datetime, timedelta
 import signature
+import pycheval
 
 """
 zugferd-xml
@@ -386,7 +387,12 @@ def setup_logging(file):
         datefmt="%d.%m.%Y %H:%M:%S"
     )
 
+# Generating the XML file using the pycheval library
+def create_zugferd_xml():
+
+
 # Creation of the guideline/profile identifier (GuidelineSpecifiedDocumentContextParameter)
+## Future responsibility: pycheval
 def create_context(file):
     file.write('    <!-- ZUGFeRD 2.5 / EN16931 -->\n')
     file.write('    <rsm:ExchangedDocumentContext>\n')
@@ -398,6 +404,7 @@ def create_context(file):
     file.write('    </rsm:ExchangedDocumentContext>\n')
 
 # Generation of the ExchangedDocument for the ZUGFeRD XML
+## Future responsibility: pycheval
 def create_document(file):
     file.write('    <rsm:ExchangedDocument>\n')
     file.write(f'        <ram:ID>{invoice_number_pre}_{buyer_id}_{invoice_date}</ram:ID>\n')
@@ -408,6 +415,7 @@ def create_document(file):
     file.write('    </rsm:ExchangedDocument>\n')    
 
 # Generation of the invoice line items for the ZUGFeRD XML
+## Future responsibility: pycheval
 def create_trade_line_item(file):
     global LineAmount
     LineAmount = {}
@@ -444,6 +452,7 @@ def create_trade_line_item(file):
         file.write('        </ram:IncludedSupplyChainTradeLineItem>\n')
 
 # Generation of the invoice issuer (SellerTradeParty) of the ZUGFeRD-XML
+## Future responsibility: pycheval
 def create_seller(file):
     file.write('            <ram:SellerTradeParty>\n')
     file.write(f'                <ram:Name>{escape(str(seller_name))}</ram:Name>\n')
@@ -459,6 +468,7 @@ def create_seller(file):
     file.write('            </ram:SellerTradeParty>\n')
 
 # Generation of the invoice recipient (BuyerTradeParty)
+## Future responsibility: pycheval
 def create_buyer(file):
     file.write('            <ram:BuyerTradeParty>\n')
     file.write(f'                <ram:Name>{escape(str(buyer_name))}</ram:Name>\n')
@@ -471,6 +481,7 @@ def create_buyer(file):
     file.write('            </ram:BuyerTradeParty>\n')
 
 # Generation of payment information or payment terms (PaymentMeans)
+## Future responsibility: pycheval
 def create_credit_transfer(file):
     file.write('            <ram:SpecifiedTradeSettlementPaymentMeans>\n')
     file.write(f'                <ram:TypeCode>{type_code2}</ram:TypeCode>\n')
@@ -485,6 +496,7 @@ def create_credit_transfer(file):
     logging.info(f"Eintrag von PayeePartyCreditorFinancialAccount, da Typ Überweisung.")
 
 # Generation of the SEPA Direct Debit payment method
+## Future responsibility: pycheval
 def create_direct_debit(file):
     file.write('            <ram:SpecifiedTradeSettlementPaymentMeans>\n')
     file.write(f'                <ram:TypeCode>{type_code2}</ram:TypeCode>\n')
@@ -493,6 +505,7 @@ def create_direct_debit(file):
     logging.info(f"Eintraggenerierung für den Typ SEPA-Lastschrift.")
 
 # Generation of the SEPA direct debit mandate reference (DirectDebitMandateID)
+## Future responsibility: pycheval
 def create_direct_debit_mandatID(file):  
     file.write('                <ram:DirectDebitMandateID>\n')
     file.write(f'                    {escape(str(mandateID))}\n')
@@ -541,6 +554,7 @@ def create_discount(file, vat_breakdowns, vat_rate):
     return discount_actual_amount
 
 # Generation of the invoice discount (allowance) per VAT rate with calculation basis, discount amount and associated VAT rate.
+## Future responsibility: pycheval
 def create_discount_position(file):
     for position in range(1, len(vat_breakdowns) + 1):
         vat_rate = list(vat_breakdowns.keys())[position - 1]
@@ -565,6 +579,7 @@ def create_discount_position(file):
         file.write('\n')
 
 # Determination and output of the payment term, including the due date, as well as the distinction between bank transfer and SEPA direct debit
+## Future responsibility: pycheval
 def create_payment_terms(file):
     invoiceDate = datetime.strptime(invoice_date, "%Y%m%d")
     PaymentTerms = paymentterms
@@ -626,6 +641,7 @@ def calculate_amounts(file):
     }
 
 # Generation of the `SpecifiedTradeSettlementHeaderMonetarySummation`—that is, the summation of the total monetary amounts in the invoice header.
+## Future responsibility: pycheval
 def create_monetary_summation(file, amounts):
     file.write('            <ram:SpecifiedTradeSettlementHeaderMonetarySummation>\n')
     file.write(f'                <ram:LineTotalAmount>{amounts["line_total_amount"]:.2f}</ram:LineTotalAmount>\n')
