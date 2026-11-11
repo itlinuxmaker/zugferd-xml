@@ -149,16 +149,18 @@ def read_inputs():
                 if new_value:
                     globals()[key] = new_value
     # Provision of file names for files to be created and accessed.
+    global invoice_number
+    invoice_number = f"{invoice_number_pre}_{buyer_id}_{invoice_number}"
     global pdf_file
-    pdf_file = f"{invoice_number_pre}_{buyer_id}_{invoice_number}.pdf"
+    pdf_file = f"{invoice_number}.pdf"
     global zugferd_pdf
-    zugferd_pdf = f"{invoice_number_pre}_{buyer_id}_{invoice_number}-ZUGFeRD.pdf"
+    zugferd_pdf = f"{invoice_number}-ZUGFeRD.pdf"
     global zugferd_pdf_sign
-    zugferd_pdf_sign = f"{invoice_number_pre}_{buyer_id}_{invoice_number}-ZUGFeRD_signed.pdf"
+    zugferd_pdf_sign = f"{invoice_number}-ZUGFeRD_signed.pdf"
     global xml_file
-    xml_file = f"{invoice_number_pre}_{buyer_id}_{invoice_number}-ZUGFeRD.xml"
+    xml_file = f"{invoice_number}-ZUGFeRD.xml"
     path_pdf = f"{pdf_path}{pdf_file}"
-    logging.info(f"Bereitsstellung der Dateinamen {pdf_file}, {zugferd_pdf}, {xml_file}, {path_pdf}")
+    logging.info(f"Bereitsstellung der Dateinamen {invoice_number}, {pdf_file}, {zugferd_pdf}, {xml_file}, {path_pdf}")
 
     # Verification of the correct PDF version for invoice PDFs.
     check_pdf(path_pdf)
@@ -173,7 +175,7 @@ def read_inputs():
             if not re.fullmatch(r'\d{2}\.\d{2}\.\d{4}', value):
                 raise ValueError("Format")
 
-            invoice_date = datetime.strptime(value, '%d.%m.%Y').strftime('%Y%m%d')
+            invoice_date = datetime.strptime(value, '%d.%m.%Y').date()
             break
         except ValueError:
             print("Das Datum muss im Format dd.mm.YYYY eingegeben werden.")
@@ -389,6 +391,124 @@ def setup_logging(file):
 
 # Generating the XML file using the pycheval library
 def create_zugferd_xml():
+    invoice = EN16931Invoice(
+        invoice_number = invoice_number,
+        type_code = DocumentTypeCode.INVOICE,
+        invoice_date = invoice_date,
+
+        # Invoicing Parties
+        seller = TradeParty(
+            name = seller_name,
+            address =  PostalAddress(
+                country_code = seller_country,
+                post_code = seller_postcode,
+                city = seller_city,
+                line_one = seller_street,
+            ),
+        ),
+
+        buyer= TradeParty(
+            name = buyer_name,
+            address =  PostalAddress(
+                country_code = buyer_country,
+                post_code = buyer_postcode,
+                city = buyer_city,
+                line_one = buyer_street,
+            ),
+        ),
+
+        currency_code = currencyID,
+
+        line_total_amount = Money(str(line_total_amount), InvoiceCurrencyCode),
+        tax_basis_total_amounts = Money(str(tax_basis_amount), InvoiceCurrencyCode),
+        tax_total_amounts = [
+            Money(str(vat_breakdowns[rate]["CalculatedAmount"]), InvoiceCurrencyCode)
+            for rate in vat_breakdowns
+        ],
+        grand_total_amount = Money(str(grand_total_amount), InvoiceCurrencyCode),
+        due_payable_amount = Money(str(due_payable_amount), InvoiceCurrencyCode),
+        allowance_total_amount = Money(str(discount_actual_amount), InvoiceCurrencyCode),
+        prepaid_amount = Money(str(paid_amount), InvoiceCurrencyCode),
+
+        delivery_date = (
+            deliveryDate
+            if deliveryDate
+            else None
+        ),
+
+        billing_period = (
+            (StartDateTime, EndDateTime)
+            if not StartDateTime 
+            and EndDateTime
+            else None
+        ),
+
+        seller_sepa_creditor_id = (
+            creditor_reference_id
+            if type_code2 == 59                
+            else None    
+        ),
+
+        payment_reference = invoice_number,
+
+        payment_means = (
+            [
+                PaymentMeans(
+                    type_code = type_code2,
+                    payee_account = BankAccount(
+                        iban = iban_id,
+                        name = seller_name,
+                        bank_id = iban_id,
+                    ),
+                    payee_bic = bic_id,
+                    information = mandateID,
+                )
+            ]
+            if type_code2 == 59
+            else []
+        ),
+
+        payment_terms = PaymentTerms(
+            description = f"Zahlungsziel: {escape(str(paymentterms))}",
+            due_date = (
+                invoiceDate + timedelta(days=2)
+                if paymentterms == "sofort"
+                else invoiceDate + timedelta(days=int(paymentterms))
+                if paymentterms in re.findall(
+                    r"'(\d+)'", 
+                    descriptions["PaymentTerms"]
+                )
+                else None
+            ), 
+            direct_debit_mandate_id = mandateID,
+        ),
+
+        # Invoice Items
+        line_items = [
+            LineItem(
+                id = globals()[f"line{position}"],
+                name = globals()[f"product_name{position}"],
+                net_price = Money(
+                    str(globals()[f"unit_price{position}"]),
+                    InvoiceCurrencyCode,
+                ),
+                billed_quantity = Quantities(
+                    globals()[f"quantity{position}"],
+                    QuantityCode.HOUR if globals()[f"unitCode{position}"] == "HUR"
+                    else QuantityCode.ONE
+                ),
+                billed_total = Money(
+                    str(
+                        (globals()[f"unit_price{position}"] * globals()[f"quantity{position}"]).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP,)
+                    ),
+                    InvoiceCurrencyCode,
+                ),
+                tax_rate = globals()[f"RateApplicablePercent{position}"],
+                tax_category = TaxCategoryCode.STANDARD_RATE,
+            )
+            for position in range(1, positions + 1)
+        ],
+    )
 
 
 # Creation of the guideline/profile identifier (GuidelineSpecifiedDocumentContextParameter)
