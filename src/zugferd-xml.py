@@ -12,6 +12,24 @@ from pathlib import Path
 from datetime import datetime, timedelta
 import signature
 import pycheval
+from pycheval import (
+    EN16931Invoice,
+    TradeParty,
+    PostalAddress,
+    Tax,
+    Money,
+    PaymentMeans,
+    BankAccount,
+    PaymentTerms,
+    LineItem,
+    generate_xml,
+)
+from pycheval.type_codes import (
+    DocumentTypeCode,
+    TaxCategoryCode,
+)
+from pycheval.quantities import QuantityCode
+from pycheval.types import Quantity
 
 """
 zugferd-xml
@@ -108,7 +126,7 @@ def read_inputs():
         "information1",
         "information2",
         "Rabatt",
-        "PaymentTerms",
+        "Payment_Terms",
         "currencyID",
         "creditor_reference_id",
         "mandateID",
@@ -124,6 +142,7 @@ def read_inputs():
         "seller_country",
         "schemeID",
         "seller_vat_id",
+        "seller_tax_number",
         "StartDateTime",
         "EndDateTime",
         "deliveryDate",
@@ -184,8 +203,8 @@ def read_inputs():
     while True:
         try:
             global paymentterms
-            description = invoice_data["descriptions"]["PaymentTerms"]
-            value = invoice_data["invoice"][9]["SpecifiedTradePaymentTerms"]["PaymentTerms"]
+            description = invoice_data["descriptions"]["Payment_Terms"]
+            value = invoice_data["invoice"][9]["SpecifiedTradePaymentTerms"]["Payment_Terms"]
             paymentterms = input(f"Geben Sie den Wert für {description} ein oder bestätigen Sie [{value}]: ")
             selected = re.findall(r"'([^']+)'", description)
             if paymentterms == "":
@@ -390,7 +409,32 @@ def setup_logging(file):
     )
 
 # Generating the XML file using the pycheval library
-def create_zugferd_xml():
+def create_zugferd_xml(
+    line_total_amount,
+    discount_actual_amount,
+    tax_basis_amount,
+    tax_total_amount,
+    grand_total_amount,
+    due_payable_amount):
+
+    taxes = []
+
+    for rate, data in vat_breakdowns.items():
+        taxes.append(
+            Tax(
+                calculated_amount=Money(
+                    str(data["CalculatedAmount"]),
+                    InvoiceCurrencyCode
+                ),
+                basis_amount=Money(
+                    str(data["BasisAmount"]),
+                    InvoiceCurrencyCode
+                ),
+                rate_percent=Decimal(str(rate)),
+                category_code=TaxCategoryCode.STANDARD_RATE
+            )
+        )
+
     invoice = EN16931Invoice(
         invoice_number = invoice_number,
         type_code = DocumentTypeCode.INVOICE,
@@ -405,6 +449,8 @@ def create_zugferd_xml():
                 city = seller_city,
                 line_one = seller_street,
             ),
+            tax_number = seller_tax_number,
+            vat_id = seller_vat_id,
         ),
 
         buyer= TradeParty(
@@ -418,9 +464,10 @@ def create_zugferd_xml():
         ),
 
         currency_code = currencyID,
+        tax = taxes,
 
         line_total_amount = Money(str(line_total_amount), InvoiceCurrencyCode),
-        tax_basis_total_amounts = Money(str(tax_basis_amount), InvoiceCurrencyCode),
+        tax_basis_total_amount = Money(str(tax_basis_amount), InvoiceCurrencyCode),
         tax_total_amounts = [
             Money(str(vat_breakdowns[rate]["CalculatedAmount"]), InvoiceCurrencyCode)
             for rate in vat_breakdowns
@@ -471,12 +518,12 @@ def create_zugferd_xml():
         payment_terms = PaymentTerms(
             description = f"Zahlungsziel: {escape(str(paymentterms))}",
             due_date = (
-                invoiceDate + timedelta(days=2)
+                invoice_date + timedelta(days=2)
                 if paymentterms == "sofort"
-                else invoiceDate + timedelta(days=int(paymentterms))
+                else invoice_date + timedelta(days=int(paymentterms))
                 if paymentterms in re.findall(
                     r"'(\d+)'", 
-                    descriptions["PaymentTerms"]
+                    descriptions["Payment_Terms"]
                 )
                 else None
             ), 
@@ -486,15 +533,16 @@ def create_zugferd_xml():
         # Invoice Items
         line_items = [
             LineItem(
-                id = globals()[f"line{position}"],
+                id = str(globals()[f"line{position}"]),
                 name = globals()[f"product_name{position}"],
                 net_price = Money(
                     str(globals()[f"unit_price{position}"]),
                     InvoiceCurrencyCode,
                 ),
-                billed_quantity = Quantities(
-                    globals()[f"quantity{position}"],
-                    QuantityCode.HOUR if globals()[f"unitCode{position}"] == "HUR"
+                billed_quantity = (
+                    Decimal(str(globals()[f"quantity{position}"])),
+                    QuantityCode.HOUR
+                    if globals()[f"unitCode{position}"] == "HUR"
                     else QuantityCode.ONE
                 ),
                 billed_total = Money(
@@ -510,154 +558,22 @@ def create_zugferd_xml():
         ],
     )
 
+    # Generate and save ZUGFeRD XML
+    xml_string = generate_xml(invoice)
 
-# Creation of the guideline/profile identifier (GuidelineSpecifiedDocumentContextParameter)
-## Future responsibility: pycheval
-def create_context(file):
-    file.write('    <!-- ZUGFeRD 2.5 / EN16931 -->\n')
-    file.write('    <rsm:ExchangedDocumentContext>\n')
-    file.write('        <ram:GuidelineSpecifiedDocumentContextParameter>\n')
-    file.write('            <ram:ID>')
-    file.write('urn:cen.eu:en16931:2017#conformant#urn:factur-x.eu:1p0:extended')
-    file.write('</ram:ID>\n')
-    file.write('        </ram:GuidelineSpecifiedDocumentContextParameter>\n')
-    file.write('    </rsm:ExchangedDocumentContext>\n')
+    with open(f"{xml_path}{xml_file}", "w", encoding="utf-8") as file:
+        file.write(xml_string)
 
-# Generation of the ExchangedDocument for the ZUGFeRD XML
-## Future responsibility: pycheval
-def create_document(file):
-    file.write('    <rsm:ExchangedDocument>\n')
-    file.write(f'        <ram:ID>{invoice_number_pre}_{buyer_id}_{invoice_date}</ram:ID>\n')
-    file.write(f'        <ram:TypeCode>{type_code1}</ram:TypeCode>\n')
-    file.write('        <ram:IssueDateTime>\n')
-    file.write(f'            <udt:DateTimeString format="102">{invoice_date}</udt:DateTimeString>\n')
-    file.write('        </ram:IssueDateTime>\n')
-    file.write('    </rsm:ExchangedDocument>\n')    
-
-# Generation of the invoice line items for the ZUGFeRD XML
-## Future responsibility: pycheval
-def create_trade_line_item(file):
-    global LineAmount
-    LineAmount = {}
-    for position in range(1, positions + 1):
-        unit_price = Decimal(str(globals()[f"unit_price{position}"]))
-        quantity = Decimal(str(globals()[f"quantity{position}"]))
-        LineAmount[position] = str((unit_price * quantity).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-        
-        file.write('        <ram:IncludedSupplyChainTradeLineItem>\n')
-        file.write('            <ram:AssociatedDocumentLineDocument>\n')
-        file.write(f'                <ram:LineID>{globals()[f"line{position}"]}</ram:LineID>\n')
-        file.write('            </ram:AssociatedDocumentLineDocument>\n')
-        file.write('            <ram:SpecifiedTradeProduct>\n')
-        file.write(f'                <ram:Name>{escape(str(globals()[f"product_name{position}"]))}</ram:Name>\n')
-        file.write('            </ram:SpecifiedTradeProduct>\n')
-        file.write('            <ram:SpecifiedLineTradeAgreement>\n')
-        file.write('                <ram:NetPriceProductTradePrice>\n')
-        file.write(f'                    <ram:ChargeAmount>{globals()[f"unit_price{position}"]:.2f}</ram:ChargeAmount>\n')
-        file.write('                </ram:NetPriceProductTradePrice>\n')
-        file.write('            </ram:SpecifiedLineTradeAgreement>\n')
-        file.write('            <ram:SpecifiedLineTradeDelivery>\n')
-        file.write(f'                <ram:BilledQuantity unitCode="{globals()[f"unitCode{position}"]}">{globals()[f"quantity{position}"]}</ram:BilledQuantity>\n')
-        file.write('            </ram:SpecifiedLineTradeDelivery>\n')
-        file.write('            <ram:SpecifiedLineTradeSettlement>\n')
-        file.write('                <ram:ApplicableTradeTax>\n')
-        file.write(f'                    <ram:TypeCode>{type_code3}</ram:TypeCode>\n')
-        file.write(f'                    <ram:CategoryCode>{category_code}</ram:CategoryCode>\n')
-        file.write(f'                    <ram:RateApplicablePercent>{globals()[f"RateApplicablePercent{position}"]}</ram:RateApplicablePercent>\n')
-        file.write('                </ram:ApplicableTradeTax>\n')
-        file.write('                <ram:SpecifiedTradeSettlementLineMonetarySummation>\n')
-        file.write(f'                    <ram:LineTotalAmount>{LineAmount[position]}</ram:LineTotalAmount>\n')
-        file.write('                </ram:SpecifiedTradeSettlementLineMonetarySummation>\n')
-        file.write('            </ram:SpecifiedLineTradeSettlement>\n')
-        file.write('        </ram:IncludedSupplyChainTradeLineItem>\n')
-
-# Generation of the invoice issuer (SellerTradeParty) of the ZUGFeRD-XML
-## Future responsibility: pycheval
-def create_seller(file):
-    file.write('            <ram:SellerTradeParty>\n')
-    file.write(f'                <ram:Name>{escape(str(seller_name))}</ram:Name>\n')
-    file.write('                <ram:PostalTradeAddress>\n')
-    file.write(f'                    <ram:PostcodeCode>{escape(str(seller_postcode))}</ram:PostcodeCode>\n')
-    file.write(f'                    <ram:LineOne>{escape(str(seller_street))}</ram:LineOne>\n')
-    file.write(f'                    <ram:CityName>{escape(str(seller_city))}</ram:CityName>\n')
-    file.write(f'                    <ram:CountryID>{escape(str(seller_country))}</ram:CountryID>\n')
-    file.write('                </ram:PostalTradeAddress>\n') 
-    file.write('                <ram:SpecifiedTaxRegistration>\n')
-    file.write(f'                    <ram:ID schemeID="{schemeID}">{escape(str(seller_vat_id))}</ram:ID>\n')
-    file.write('                </ram:SpecifiedTaxRegistration>\n')
-    file.write('            </ram:SellerTradeParty>\n')
-
-# Generation of the invoice recipient (BuyerTradeParty)
-## Future responsibility: pycheval
-def create_buyer(file):
-    file.write('            <ram:BuyerTradeParty>\n')
-    file.write(f'                <ram:Name>{escape(str(buyer_name))}</ram:Name>\n')
-    file.write('                <ram:PostalTradeAddress>\n')
-    file.write(f'                    <ram:PostcodeCode>{escape(str(buyer_postcode))}</ram:PostcodeCode>\n')
-    file.write(f'                    <ram:LineOne>{escape(str(buyer_street))}</ram:LineOne>\n')
-    file.write(f'                    <ram:CityName>{escape(str(buyer_city))}</ram:CityName>\n')
-    file.write(f'                    <ram:CountryID>{escape(str(buyer_country))}</ram:CountryID>\n')
-    file.write('                </ram:PostalTradeAddress>\n')
-    file.write('            </ram:BuyerTradeParty>\n')
-
-# Generation of payment information or payment terms (PaymentMeans)
-## Future responsibility: pycheval
-def create_credit_transfer(file):
-    file.write('            <ram:SpecifiedTradeSettlementPaymentMeans>\n')
-    file.write(f'                <ram:TypeCode>{type_code2}</ram:TypeCode>\n')
-    file.write(f'                <ram:Information>{escape(str(information1))}</ram:Information>\n')
-    file.write('                <ram:PayeePartyCreditorFinancialAccount>\n')
-    file.write(f'                    <ram:IBANID>{escape(str(iban_id))}</ram:IBANID>\n')
-    file.write('                </ram:PayeePartyCreditorFinancialAccount>\n')
-    file.write('                <ram:PayeeSpecifiedCreditorFinancialInstitution>\n')
-    file.write(f'                    <ram:BICID>{escape(str(bic_id))}</ram:BICID>\n')
-    file.write('                </ram:PayeeSpecifiedCreditorFinancialInstitution>\n')
-    file.write('            </ram:SpecifiedTradeSettlementPaymentMeans>\n')
-    logging.info(f"Eintrag von PayeePartyCreditorFinancialAccount, da Typ Überweisung.")
-
-# Generation of the SEPA Direct Debit payment method
-## Future responsibility: pycheval
-def create_direct_debit(file):
-    file.write('            <ram:SpecifiedTradeSettlementPaymentMeans>\n')
-    file.write(f'                <ram:TypeCode>{type_code2}</ram:TypeCode>\n')
-    file.write(f'                <ram:Information>{escape(str(information2))}</ram:Information>\n')
-    file.write('            </ram:SpecifiedTradeSettlementPaymentMeans>\n')
-    logging.info(f"Eintraggenerierung für den Typ SEPA-Lastschrift.")
-
-# Generation of the SEPA direct debit mandate reference (DirectDebitMandateID)
-## Future responsibility: pycheval
-def create_direct_debit_mandatID(file):  
-    file.write('                <ram:DirectDebitMandateID>\n')
-    file.write(f'                    {escape(str(mandateID))}\n')
-    file.write('                </ram:DirectDebitMandateID>\n')
-
-# Generation of the delivery date (ActualDeliverySupplyChainEvent)
-def create_actual_delivery_event(file):
-    #file.write('        <ram:ApplicableHeaderTradeDelivery>\n')
-    file.write('            <ram:ActualDeliverySupplyChainEvent>\n')
-    file.write('                <ram:OccurrenceDateTime>\n')
-    file.write(f'                   <udt:DateTimeString format="102">{deliveryDate}</udt:DateTimeString>\n')
-    file.write('                </ram:OccurrenceDateTime>\n')
-    file.write('            </ram:ActualDeliverySupplyChainEvent>\n')
-    #file.write('        </ram:ApplicableHeaderTradeDelivery>\n')  
-
-# Generation of the billing period (BillingSpecifiedPeriod)
-def create_billing_specified_period(file):
-    file.write('        <ram:BillingSpecifiedPeriod>\n')
-    file.write('            <ram:StartDateTime>\n')
-    file.write(f'               <udt:DateTimeString format="102">{StartDateTime}</udt:DateTimeString>\n')
-    file.write('            </ram:StartDateTime>\n')
-    file.write('            <ram:EndDateTime>\n')
-    file.write(f'               <udt:DateTimeString format="102">{EndDateTime}</udt:DateTimeString>\n')
-    file.write('            </ram:EndDateTime>\n')
-    file.write('        </ram:BillingSpecifiedPeriod>\n')
+    logging.info(
+        f"ZUGFeRD XML erfolgreich erstellt: {xml_path}{xml_file}"
+    )
 
 # Rounding function for monetary amounts to two decimal places.
 def rounded(value):
     return Decimal(value).quantize(Decimal("0.00"), rounding=ROUND_HALF_UP)
 
 # Calculation of the total of all invoice line item amounts, taking into account multiple VAT rates.
-def create_line_total_amount(file, vat_breakdowns):
+def create_line_total_amount(vat_breakdowns):
     global line_total_amount
     line_total_amount = Decimal("0.00")
     for position in range(1, positions +1):
@@ -665,75 +581,31 @@ def create_line_total_amount(file, vat_breakdowns):
 
     return line_total_amount
 
+# Generation of the invoice line items for the ZUGFeRD XML
+def create_trade_line_item():
+    global LineAmount
+    LineAmount = {}
+    for position in range(1, positions + 1):
+        unit_price = Decimal(str(globals()[f"unit_price{position}"]))
+        quantity = Decimal(str(globals()[f"quantity{position}"]))
+        LineAmount[position] = str((unit_price * quantity).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))    
+
 # Calculation of discounts with different VAT rates
-def create_discount(file, vat_breakdowns, vat_rate):
+def create_discount(vat_breakdowns, vat_rate):
     global discount_actual_amount
     discount_basis_amount = vat_breakdowns[vat_rate]["BasisAmount"]
     discount_actual_amount = 0
     discount_actual_amount = (discount_basis_amount * CalculationPercent / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     return discount_actual_amount
 
-# Generation of the invoice discount (allowance) per VAT rate with calculation basis, discount amount and associated VAT rate.
-## Future responsibility: pycheval
-def create_discount_position(file):
-    for position in range(1, len(vat_breakdowns) + 1):
-        vat_rate = list(vat_breakdowns.keys())[position - 1]
-
-        discount_actual_amount = create_discount(file, vat_breakdowns, vat_rate)
-        discount_basis_amount = vat_breakdowns[vat_rate]["BasisAmount"]
-
-        file.write('            <ram:SpecifiedTradeAllowanceCharge>\n')
-        file.write('                <ram:ChargeIndicator>\n')
-        file.write('                    <udt:Indicator>false</udt:Indicator>\n')
-        file.write('                </ram:ChargeIndicator>\n')
-        file.write(f'                <ram:CalculationPercent>{CalculationPercent:.2f}</ram:CalculationPercent>\n')
-        file.write(f'                <ram:BasisAmount currencyID="{currencyID}">{discount_basis_amount:.2f}</ram:BasisAmount>\n')
-        file.write(f'                <ram:ActualAmount currencyID="{currencyID}">{discount_actual_amount:.2f}</ram:ActualAmount>\n')
-        file.write(f'                <ram:Reason>{reason}</ram:Reason>\n')
-        file.write('                <ram:CategoryTradeTax>\n')
-        file.write(f'                    <ram:TypeCode>{type_code3}</ram:TypeCode>\n')
-        file.write(f'                    <ram:CategoryCode>{category_code}</ram:CategoryCode>\n')
-        file.write(f'                    <ram:RateApplicablePercent>{vat_rate:.2f}</ram:RateApplicablePercent>\n')
-        file.write('                </ram:CategoryTradeTax>\n')
-        file.write('            </ram:SpecifiedTradeAllowanceCharge>\n')
-        file.write('\n')
-
-# Determination and output of the payment term, including the due date, as well as the distinction between bank transfer and SEPA direct debit
-## Future responsibility: pycheval
-def create_payment_terms(file):
-    invoiceDate = datetime.strptime(invoice_date, "%Y%m%d")
-    PaymentTerms = paymentterms
-    if PaymentTerms == "sofort":
-        due_date = invoiceDate + timedelta(days=2)
-        logging.info(f"PaymentTerms ist: {PaymentTerms}")
-    elif PaymentTerms in re.findall(r"'(\d+)'", descriptions["PaymentTerms"]):
-        due_date = invoiceDate + timedelta(days=int(PaymentTerms))
-        logging.info(f"PaymentTerms ist in elif: {PaymentTerms}")
-
-    due_date = due_date.strftime("%Y-%m-%d")            
-
-    file.write('            <ram:SpecifiedTradePaymentTerms>\n')
-    file.write('                <ram:Description>\n')
-    if PaymentTerms == "sofort":
-        file.write(f'                    Zahlungsziel: {escape(str(PaymentTerms))} (fällig am {due_date})\n')
-    else:
-        file.write(f'                    Zahlungsziel: {escape(str(PaymentTerms))} Tage (fällig am {due_date})\n')
-    file.write('                </ram:Description>\n')
-    if type_code2 == 59:
-        create_direct_debit_mandatID(file)
-        logging.info(f"Eintrag der DirectDebitMandateID")
-    else:
-        logging.info(f"Kein Eintrag der DirectDebitMandateID, da Typ Überweisung.")        
-    file.write('            </ram:SpecifiedTradePaymentTerms>\n')
-
 # Calculation of total invoice amounts taking into account multiple VAT rates, including discount, tax, and payment amount.
-def calculate_amounts(file):
+def calculate_amounts():
     global line_total_amount
     global discount_actual_amount
     global tax_basis_amount
     global tax_total_amount
 
-    line_total_amount = rounded(create_line_total_amount(file, vat_breakdowns))
+    line_total_amount = rounded(create_line_total_amount(vat_breakdowns))
     logging.info(f"Gesamt-Nettobetrag (line_total_amount): {line_total_amount:.2f}")
     discount_actual_amount = rounded(sum(vat_breakdowns[rate]["BasisAmount"] * CalculationPercent / Decimal("100") for rate in vat_breakdowns))
     logging.info(f"Gesamter Rabatt/Nachlass (discount_actual_amount): {discount_actual_amount:.2f}")
@@ -759,19 +631,6 @@ def calculate_amounts(file):
         "grand_total_amount": grand_total_amount,
         "due_payable_amount": due_payable_amount,
     }
-
-# Generation of the `SpecifiedTradeSettlementHeaderMonetarySummation`—that is, the summation of the total monetary amounts in the invoice header.
-## Future responsibility: pycheval
-def create_monetary_summation(file, amounts):
-    file.write('            <ram:SpecifiedTradeSettlementHeaderMonetarySummation>\n')
-    file.write(f'                <ram:LineTotalAmount>{amounts["line_total_amount"]:.2f}</ram:LineTotalAmount>\n')
-    file.write(f'                <ram:AllowanceTotalAmount>{amounts["discount_actual_amount"]:.2f}</ram:AllowanceTotalAmount>\n')
-    file.write(f'                <ram:TaxBasisTotalAmount>{amounts["tax_basis_amount"]:.2f}</ram:TaxBasisTotalAmount>\n')
-    file.write(f'                <ram:TaxTotalAmount currencyID="{currencyID}">{amounts["calculated_amount"]:.2f}</ram:TaxTotalAmount>\n')
-    file.write(f'                <ram:GrandTotalAmount>{amounts["grand_total_amount"]:.2f}</ram:GrandTotalAmount>\n')
-    file.write(f'                <ram:TotalPrepaidAmount>{paid_amount:.2f}</ram:TotalPrepaidAmount>\n')
-    file.write(f'                <ram:DuePayableAmount>{amounts["due_payable_amount"]:.2f}</ram:DuePayableAmount>\n')
-    file.write('            </ram:SpecifiedTradeSettlementHeaderMonetarySummation>\n')
 
 # Generation of the ZUGFeRD PDF file with the corresponding parameters.
 def create_pdfdocument():
@@ -848,70 +707,23 @@ def main():
                 globals()[key] = "" if value is None else value            
 
     read_inputs()
+    create_trade_line_item()
+    amounts = calculate_amounts()
 
-    # Construction of the ZUGFeRD XML file
-    with open(os.path.join(xml_path, xml_file), "w", encoding="utf-8") as file:
-        file.write('<?xml version="1.0" encoding="UTF-8"?>\n')
-        file.write('<rsm:CrossIndustryInvoice\n')
-        file.write('    xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"\n')
-        file.write('    xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"\n')
-        file.write('    xmlns:qdt="urn:un:unece:uncefact:data:standard:QualifiedDataType:100"\n')
-        file.write('    xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100">\n')
-        file.write('\n')
-
-        create_context(file)
-
-        create_document(file)
-
-        file.write('    <rsm:SupplyChainTradeTransaction>\n')
-        create_trade_line_item(file)
-        amounts = calculate_amounts(file)
-        file.write('        <ram:ApplicableHeaderTradeAgreement>\n')
-        create_seller(file)
-        file.write('\n')
-        create_buyer(file)
-        file.write('        </ram:ApplicableHeaderTradeAgreement>\n')
-        file.write('\n')
-        file.write('        <ram:ApplicableHeaderTradeDelivery>\n')
-        if deliveryDate:
-            create_actual_delivery_event(file)
-        file.write('        </ram:ApplicableHeaderTradeDelivery>\n')
-        file.write('\n')
-        file.write('        <ram:ApplicableHeaderTradeSettlement>\n')
-        file.write(f'            <ram:CreditorReferenceID>{creditor_reference_id}</ram:CreditorReferenceID>\n')
-        file.write(f'            <ram:PaymentReference>{escape(str(invoice_number_pre))}_{escape(str(buyer_id))}_{invoice_date}</ram:PaymentReference>\n')
-        file.write(f'            <ram:InvoiceCurrencyCode>{InvoiceCurrencyCode}</ram:InvoiceCurrencyCode>\n')
-        if type_code2 == 58:
-            create_credit_transfer(file)
-        elif type_code2 == 59:
-            create_direct_debit(file)
-
-        # If there are multiple VAT rates, more than one ApplicableTradeTax entry is generated.
-        for position in range(1, len(vat_breakdowns) + 1):
-            file.write('            <ram:ApplicableTradeTax>\n')
-            file.write(f'                <ram:CalculatedAmount>{rounded((vat_breakdowns[list(vat_breakdowns.keys())[position - 1]]["BasisAmount"] - vat_breakdowns[list(vat_breakdowns.keys())[position - 1]]["BasisAmount"] * CalculationPercent / Decimal("100")) * list(vat_breakdowns.keys())[position - 1] / Decimal("100")):.2f}</ram:CalculatedAmount>\n')
-            file.write(f'                <ram:TypeCode>{type_code3}</ram:TypeCode>\n')
-            file.write(f'                <ram:BasisAmount>{(vat_breakdowns[list(vat_breakdowns.keys())[position - 1]]["BasisAmount"] - vat_breakdowns[list(vat_breakdowns.keys())[position - 1]]["BasisAmount"] * CalculationPercent / Decimal("100")):.2f}</ram:BasisAmount>\n')
-            file.write(f'                <ram:CategoryCode>{category_code}</ram:CategoryCode>\n')
-            file.write(f'                <ram:RateApplicablePercent>{list(vat_breakdowns.keys())[position - 1]:.2f}</ram:RateApplicablePercent>\n')
-            file.write('            </ram:ApplicableTradeTax>\n')
-
-        if not deliveryDate:
-            create_billing_specified_period(file)
-        
-        if CalculationPercent > 0:
-            create_discount_position(file)
-
-        create_payment_terms(file)
-        create_monetary_summation(file, amounts)
-        file.write('        </ram:ApplicableHeaderTradeSettlement>\n')
-        file.write('    </rsm:SupplyChainTradeTransaction>\n')
-        file.write('</rsm:CrossIndustryInvoice>\n' )
-
+    # Construction of the ZUGFeRD XML with Pycheval
+    create_zugferd_xml(
+        line_total_amount=amounts["line_total_amount"],
+        discount_actual_amount=amounts["discount_actual_amount"],
+        tax_basis_amount=amounts["tax_basis_amount"],
+        tax_total_amount=amounts["tax_total_amount"],
+        grand_total_amount=amounts["grand_total_amount"],
+        due_payable_amount=amounts["due_payable_amount"]
+    )
     create_pdfdocument()
 
     """
     Creation of an X.509 certificate and signing of the PDF file
+    """
     """
     while True:
         # Checking user input for yes/no
@@ -933,6 +745,6 @@ def main():
     elif sign_ask in ("nein", "n"):
         logging.info(f"Keine Signierung von {zugferd_pdf}.")
 
-    validate_zugferd_pdf()
+    validate_zugferd_pdf()"""
 if __name__ == "__main__":
     main()
