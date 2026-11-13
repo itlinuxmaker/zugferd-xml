@@ -14,7 +14,7 @@ Creates ZUGFeRD 2.5 invoices from invoice data and a PDF/A-3b source, supports m
 
 ## Installation
 * Python 3.13+
-* PyYAML, pikepdf, cryptography and pyHanko must be installed via pip
+* PyYAML, PyCheval, pikepdf, cryptography and pyHanko must be installed via pip
 * Mustangproject 2.5
 
 ### Make the YAML file available in the user directory.

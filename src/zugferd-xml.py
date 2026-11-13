@@ -33,7 +33,7 @@ from pycheval.types import Quantity
 
 """
 zugferd-xml
-Version: 1.5.1
+Version: 1.6.0
 Author: Andreas Günther
 License: GNU General Public License v3.0 or later
 
@@ -724,7 +724,6 @@ def main():
     """
     Creation of an X.509 certificate and signing of the PDF file
     """
-    """
     while True:
         # Checking user input for yes/no
         try:
@@ -745,6 +744,6 @@ def main():
     elif sign_ask in ("nein", "n"):
         logging.info(f"Keine Signierung von {zugferd_pdf}.")
 
-    validate_zugferd_pdf()"""
+    validate_zugferd_pdf()
 if __name__ == "__main__":
     main()
