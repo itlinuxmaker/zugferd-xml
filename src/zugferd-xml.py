@@ -440,7 +440,6 @@ def create_zugferd_xml(
         type_code = DocumentTypeCode.INVOICE,
         invoice_date = invoice_date,
 
-        # Invoicing Parties
         seller = TradeParty(
             name = seller_name,
             address =  PostalAddress(
@@ -530,7 +529,6 @@ def create_zugferd_xml(
             direct_debit_mandate_id = mandateID,
         ),
 
-        # Invoice Items
         line_items = [
             LineItem(
                 id = str(globals()[f"line{position}"]),

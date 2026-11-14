@@ -3,7 +3,7 @@ invoice:
       pdf_path: "/home/user/Dokumente/Rechnungen/" 
       xml_path: "/home/user/Dokumente/Rechnungen/"
       xml_file: "faktura-ZUGFeRD.xml"
-      formats: "fx"
+      formats: "zf"
       version: "2"
       attachments:
 
