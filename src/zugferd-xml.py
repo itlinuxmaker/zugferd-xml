@@ -33,7 +33,7 @@ from pycheval.types import Quantity
 
 """
 zugferd-xml
-Version: 1.6.0
+Version: 1.6.1
 Author: Andreas Günther
 License: GNU General Public License v3.0 or later
 
@@ -557,7 +557,7 @@ def create_zugferd_xml(
     )
 
     # Generate and save ZUGFeRD XML
-    xml_string = generate_xml(invoice)
+    xml_string = generate_xml(invoice, indent=True)
 
     with open(f"{xml_path}{xml_file}", "w", encoding="utf-8") as file:
         file.write(xml_string)
